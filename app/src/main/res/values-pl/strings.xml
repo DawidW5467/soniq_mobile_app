@@ -1,0 +1,32 @@
+<!--PL LANG-->
+<resources>
+    <string name="app_name">Soniq Controller</string>
+    <string name="nav_song">Odtwarzanie</string>
+    <string name="nav_library">Biblioteka</string>
+    <string name="nav_settings">Ustawienia</string>
+
+    <string name="language_title">Język aplikacji</string>
+    <string name="language_subtitle">Wybierz język interfejsu aplikacji</string>
+    <string name="back">Wstecz</string>
+    <string name="accessibility_title">Ułatwienia dostępu</string>
+    <string name="device_paring_title">Parowanie urządzenia</string>
+    <string name="device_paring_subtitle">Połącz się z systemem</string>
+    <string name="accessibility_subtitle">Kontrast, ikonifikacja</string>
+    <string name="system_info_title">System</string>
+    <string name="system_info_subtitle">Informacje o systemie</string>
+    <string name="language_settings_title">Język (Language)</string>
+    <string name="language_settings_subtitle">Ustaw język</string>
+    <string name="high_contrast_title">Wysoki kontrast</string>
+    <string name="high_contrast_subtitle">Motyw czarno-żółty</string>
+    <string name="replacing_icons_title">Zastępowanie ikon</string>
+    <string name="replacing_icons_subtitle">Zastąp ikony tekstem</string>
+    <string name="font_scale_small">Mała</string>
+    <string name="font_scale_normal">Zwykła</string>
+    <string name="font_scale_large">Duża</string>
+    <string name="font_scale_extra_large">Bardzo duża</string>
+    <string name="font_size_title">Rozmiar czcionki</string>
+    <string name="system_info_device_name">Nazwa urządzenia</string>
+    <string name="system_info_model_name">Model urządzenia</string>
+    <string name="system_info_firmware_version">Wersja firmware</string>
+    <string name="system_info_working_time">Czas pracy</string>
+</resources>

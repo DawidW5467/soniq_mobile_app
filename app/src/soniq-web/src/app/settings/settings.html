@@ -1,0 +1,63 @@
+<ng-template #dialog>
+  @if (!leaving()) {
+    <div animate.enter="dialogEnter" animate.leave="dialogLeave" class="dialog-panel">
+      @let close_title = 'settings.close' | translate;
+      <button (click)="hide()" [attr.aria-label]="close_title" [title]="close_title" class="close-button" tabindex="2">
+        <fa-icon [icon]="faXmark" size="3x" />
+      </button>
+      <h2>{{ 'settings.title' | translate }}</h2>
+      <form (submit)="$event.preventDefault()">
+        <fieldset>
+          <legend>
+            <fa-icon [icon]="faLink" />
+            {{ 'settings.connection.title' | translate }}
+          </legend>
+          <label>
+            <span>IP</span>
+            <i>{{ 'settings.connection.IPDesc' | translate }}</i>
+            <input type="text" [formField]="settingsForm.connectionIP" placeholder="192.168.22.140" />
+          </label>
+          <label>
+            <span>Token</span>
+            <i>{{ 'settings.connection.TokenDesc1' | translate }} <br> {{ 'settings.connection.TokenDesc2' | translate }}</i>
+            <input type="text" [formField]="settingsForm.connectionToken" placeholder="aSyBIypMK" />
+          </label>
+          <button class="connect" (click)="connectToCentral()">{{ 'settings.connection.connect' | translate }}</button>
+        </fieldset>
+        <fieldset>
+          <legend>
+            <fa-icon [icon]="faUniversalAccess" />
+            {{ 'settings.accessibility.title' | translate }}
+          </legend>
+          <label>
+            <span>{{ 'settings.accessibility.highContrast' | translate }}</span>
+            <i>{{ 'settings.accessibility.highContrastDesc' | translate }}</i>
+            <switch [label]="'settings.accessibility.highContrastLabel' | translate" [formField]="settingsForm.highContrast" />
+          </label>
+          <label>
+            <span>{{ 'settings.accessibility.fontSize' | translate }}</span>
+            <i>{{ 'settings.accessibility.fontSizeDesc' | translate }}</i>
+            <div class="font-size-changers">
+              <button (click)="changeFontSize(-2)">A-</button>
+              <button (click)="changeFontSize(2)">A+</button>
+              <button (click)="changeFontSize(6)">A++</button>
+            </div>
+          </label>
+          <label>
+            <span>{{ 'settings.accessibility.language' | translate }}</span>
+            <i>{{ 'settings.accessibility.languageDesc' | translate }}</i>
+            <select [formField]="settingsForm.language">
+              <option value="pl">{{ 'settings.accessibility.polish' | translate }}</option>
+              <option value="en">{{ 'settings.accessibility.english' | translate }}</option>
+            </select>
+          </label>
+          <label>
+            <span>{{ 'settings.accessibility.buttonsIconification' | translate }}</span>
+            <i>{{ 'settings.accessibility.buttonsIconificationDesc1' | translate }}<br> {{ 'settings.accessibility.buttonsIconificationDesc2' | translate }} <br> {{ 'settings.accessibility.buttonsIconificationDesc3' | translate }}</i>
+            <switch [label]="'settings.accessibility.buttonsIconificationLabel' | translate" [formField]="settingsForm.iconifyButtons" />
+          </label>
+        </fieldset>
+      </form>
+    </div>
+  }
+</ng-template>

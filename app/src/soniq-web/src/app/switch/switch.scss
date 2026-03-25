@@ -1,0 +1,61 @@
+@use 'index' as i;
+
+:host {
+  outline: 2px solid var(--outline);
+  border-radius: i.$border-radius-full;
+  position: relative;
+  width: 60px;
+  height: 30px;
+  display: inline-block;
+
+  &:focus-within {
+    border-radius: i.$border-radius-full;
+    outline: 2px solid var(--surface-container-highest);
+    outline-offset: 1px;
+  }
+
+  &.on .slider {
+    background-color: var(--primary-switch);
+
+    &:before {
+      transform: translateX(30px);
+    }
+  }
+}
+
+span:first-of-type {
+  color: var(--on-surface-variant);
+
+  span {
+    color: var(--on-surface);
+  }
+}
+
+span:last-of-type {
+  cursor: pointer;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  border-radius: i.$border-radius-full;
+  background-color: var(--outline-variant);
+  transition: background-color 250ms;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  &:before {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: i.$border-radius-full;
+    background-color: var(--surface-container);
+    transition: transform 250ms;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    content: '';
+    left: 2px;
+    bottom: 2px;
+  }
+}

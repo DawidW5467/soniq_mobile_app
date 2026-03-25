@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Soniq Remote</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; background: #111; color: #eee; }
+    .row { margin: 8px 0; }
+    input, button, select { font-size: 16px; padding: 8px 10px; margin-right: 8px; border-radius: 6px; border: 1px solid #444; background: #1b1b1b; color: #eee; }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status { font-size: 14px; color: #9aa0a6; }
+    .playlist { margin-top: 12px; max-height: 240px; overflow: auto; border: 1px solid #333; padding: 8px; border-radius: 6px; }
+    .playlist button { display: block; width: 100%; text-align: left; margin: 4px 0; }
+    #view-upload { padding-top: 4px; }
+    #dropZone { border: 2px dashed #555; border-radius: 10px; padding: 32px; text-align: center; color: #888; cursor: pointer; transition: border-color 0.2s, background 0.2s; margin-bottom: 12px; }
+    #dropZone.dragover { border-color: #7af; background: #1a2233; color: #cde; }
+    #dropZone.has-file { border-color: #4a4; color: #aea; }
+    .upload-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+    .progress-wrap { width: 100%; background: #333; border-radius: 6px; height: 18px; overflow: hidden; margin: 6px 0; }
+    .progress-bar { height: 100%; background: #4a7; width: 0; transition: width 0.2s; border-radius: 6px; }
+    .upload-log { margin-top: 10px; max-height: 180px; overflow-y: auto; font-size: 13px; color: #9aa0a6; background: #181818; border: 1px solid #333; border-radius: 6px; padding: 8px; }
+    .upload-log .ok { color: #4c4; }
+    .upload-log .err { color: #e44; }
+    .upload-log .inf { color: #9aa0a6; }
+  </style>
+</head>
+<body>
+  <h2>Soniq Remote (Test)</h2>
+
+  <div class="row">
+    <label for="wsUrl" style="display:none;">Adres WebSocket</label>
+    <input id="wsUrl" size="60" placeholder="ws://IP:8787/ws?token=..." />
+    <button id="connectBtn">Polacz</button>
+    <button id="disconnectBtn" disabled>Rozlacz</button>
+  </div>
+
+  <div class="row status" id="status">Rozlaczony</div>
+
+  <div class="row" id="tabBar" style="display:flex; gap:10px; margin-bottom: 15px;">
+    <button id="tabBtnPlayer" onclick="switchTab('player')" style="flex:1; background:#334; font-weight:bold;">Odtwarzacz</button>
+    <button id="tabBtnBrowse" onclick="switchTab('browse')" style="flex:1;">Przeglądaj</button>
+    <button id="tabBtnUpload" onclick="switchTab('upload')" style="flex:1;">Upload</button>
+  </div>
+
+  <div id="view-player">
+    <div class="row">
+      <button onclick="sendCmd('previous')">Prev</button>
+      <button onclick="sendCmd('play')">Play</button>
+      <button onclick="sendCmd('pause')">Pause</button>
+      <button onclick="sendCmd('toggle')">Toggle</button>
+      <button onclick="sendCmd('next')">Next</button>
+      <button onclick="sendCmd('stop')">Stop</button>
+    </div>
+
+    <div class="row">
+      <label for="volume">Volume</label>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="seek">Pozycja: <span id="seekLabel">0:00 / 0:00</span></label>
+      <input id="seek" type="range" min="0" max="0" step="1000" value="0" />
+      <button onclick="seekBy(-5000)">-5s</button>
+      <button onclick="seekBy(5000)">+5s</button>
+      <button onclick="seekToSlider()">Seek</button>
+    </div>
+
+    <div class="row">
+      <label>Loop</label>
+      <button onclick="sendCmd('cycleLoop')">Cycle</button>
+      <button onclick="setLoop('off')">Off</button>
+      <button onclick="setLoop('all')">All</button>
+      <button onclick="setLoop('one')">One</button>
+    </div>
+
+    <div class="row">
+      <label>Shuffle</label>
+      <button onclick="setShuffle(true)">On</button>
+      <button onclick="setShuffle(false)">Off</button>
+    </div>
+
+    <div class="row">
+      <label for="brightness">Brightness <span id="brightnessLabel">-</span></label>
+      <input id="brightness" type="range" min="1" max="31" step="1" value="16" />
+      <button onclick="refreshBrightness()">Odczytaj</button>
+    </div>
+
+    <div class="row">
+      <label for="audioDeviceSelect">Wyjście audio</label>
+      <select id="audioDeviceSelect"></select>
+      <button onclick="refreshAudioDevices()">Odśwież urządzenia</button>
+    </div>
+
+    <div class="row">
+      <label><input id="visualizerToggle" type="checkbox" /> Wizualizer</label>
+      <label><input id="lyricsToggle" type="checkbox" /> Tekst</label>
+    </div>
+
+    <div class="row">
+      <button onclick="sendCmd('getState')">Pobierz stan</button>
+      <button onclick="refreshPlaylists()">Pobierz playlisty</button>
+    </div>
+
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <button onclick="likeCurrentTrack()">Polub aktualny utwór</button>
+      <label for="playlistIdInput" style="display:none;">Wybierz playlistę</label>
+      <select id="playlistIdInput" style="min-width:220px;"></select>
+      <button onclick="addCurrentTrackToPlaylist()">Dodaj aktualny do playlisty</button>
+    </div>
+
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <label for="newPlaylistName" style="display:none;">Nazwa nowej playlisty</label>
+      <input id="newPlaylistName" placeholder="Nazwa nowej playlisty" style="min-width:240px;" />
+      <button onclick="createPlaylist()">Dodaj playlistę</button>
+    </div>
+
+    <div class="playlist" id="playlist"></div>
+  </div>
+
+  <div id="view-upload" style="display:none;">
+    <h3>Upload pliku audio</h3>
+    <div id="dropZone">
+      <div id="dropZoneText">Przeciągnij plik audio lub kliknij, aby wybrać<br><small>.mp3 .flac .ogg .wav .aac — max 500 MB</small></div>
+      <input type="file" id="fileInput" accept=".mp3,.flac,.ogg,.wav,.aac" style="display:none" />
+    </div>
+    <div class="upload-row">
+      <label for="targetDir">Katalog docelowy:</label>
+      <select id="targetDir"><option value="Music">Music (~/Music)</option><option value="Muzyka">Muzyka (~/Muzyka)</option></select>
+    </div>
+    <div class="upload-row">
+      <button id="uploadBtn" disabled onclick="startUpload()">Wyślij plik</button>
+      <button id="cancelUploadBtn" style="display:none; color:#f88;" onclick="cancelUpload()">Anuluj</button>
+      <span id="uploadStatus" class="status"></span>
+    </div>
+    <div class="progress-wrap" id="progressWrap" style="display:none;"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="upload-log" id="uploadLog"></div>
+  </div>
+
+  <div id="view-browse" style="display:none;">
+    <h3>Przeglądaj źródła, playlisty i bibliotekę</h3>
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button onclick="requestBrowseSources()">Źródła</button>
+      <button onclick="browseShowPlaylists()">Playlisty</button>
+      <button onclick="browseShowLibraryArtists()">Biblioteka</button>
+    </div>
+    <div class="row"><div id="browseBreadcrumb" class="status">Root</div></div>
+    <div class="playlist" id="browseList"></div>
+  </div>
+
+  <script>
+    let ws;
+    let lastPositionMs = 0;
+    let lastDurationMs = 0;
+    let isSeeking = false;
+    let lastStateAt = 0;
+    let lastPlaylistKey = '';
+    let lastCurrentIndex = -1;
+    let requestSeq = 0;
+    let remotePlaylists = [];
+    let currentBrowseTracks = [];
+    let currentBrowseMode = 'sources';
+
+    const statusEl = document.getElementById('status');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const wsUrlInput = document.getElementById('wsUrl');
+    const volumeInput = document.getElementById('volume');
+    const playlistEl = document.getElementById('playlist');
+    const seekInput = document.getElementById('seek');
+    const seekLabel = document.getElementById('seekLabel');
+    const playlistIdInput = document.getElementById('playlistIdInput');
+    const newPlaylistNameInput = document.getElementById('newPlaylistName');
+    const brightnessInput = document.getElementById('brightness');
+    const brightnessLabel = document.getElementById('brightnessLabel');
+    const audioDeviceSelect = document.getElementById('audioDeviceSelect');
+    const visualizerToggle = document.getElementById('visualizerToggle');
+    const lyricsToggle = document.getElementById('lyricsToggle');
+    const browseListEl = document.getElementById('browseList');
+    const browseBreadcrumbEl = document.getElementById('browseBreadcrumb');
+
+    connectBtn.addEventListener('click', () => {
+      const url = wsUrlInput.value.trim();
+      if (!url) return;
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        statusEl.textContent = 'Polaczony';
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        sendCmd('getState');
+        refreshPlaylists();
+        refreshAudioDevices();
+        refreshBrightness();
+      };
+      ws.onclose = () => {
+        statusEl.textContent = 'Rozlaczony';
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        switchTab('player');
+      };
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          switch (data.type) {
+            case 'state': handleState(data); break;
+            case 'libraryArtists': handleLibraryArtists(data.artists || [], data.message); break;
+            case 'libraryAlbums': handleLibraryAlbums(data.albums || []); break;
+            case 'libraryTracks': handleLibraryTracks(data.tracks || []); break;
+            case 'uploadStart': handleUploadStart(data); break;
+            case 'uploadProgress': handleUploadProgress(data); break;
+            case 'uploadComplete': handleUploadComplete(data); break;
+            case 'uploadError': handleUploadError(data); break;
+            case 'uploadCancelled': handleUploadCancelled(data); break;
+            case 'fileUploaded': uploadLog(`📢 Nowy plik na serwerze: ${data.filename}`, 'inf'); break;
+            case 'ack': handleAck(data); break;
+            case 'error': handleWsError(data); break;
+            case 'playlists': handlePlaylists(data.items || []); break;
+            case 'playlistDetails': handlePlaylistDetails(data.playlist, data.tracks || []); break;
+            case 'browseSources': handleBrowseSources(data.items || []); break;
+            case 'browseSourceTracks': handleBrowseSourceTracks(data.source, data.tracks || []); break;
+            case 'audioDevices': renderAudioDevices(data.items || [], data.selected); break;
+            case 'brightness': renderBrightness(data); break;
+          }
+        } catch (_) {}
+      };
+    });
+
+    disconnectBtn.addEventListener('click', () => { if (ws) ws.close(); });
+    window.addEventListener('beforeunload', () => { if (ws) ws.close(); });
+    volumeInput.addEventListener('input', () => sendCmd('setVolume', { volume: parseFloat(volumeInput.value) }));
+    seekInput.addEventListener('input', () => { isSeeking = true; updateSeekLabel(parseInt(seekInput.value, 10) || 0, parseInt(seekInput.max, 10) || 0); });
+    seekInput.addEventListener('change', () => { seekToSlider(); isSeeking = false; });
+    brightnessInput.addEventListener('change', () => sendCmd('setBrightness', { requestId: nextRequestId('setBrightness'), level: parseInt(brightnessInput.value, 10) || 0 }));
+    audioDeviceSelect.addEventListener('change', () => { const v = audioDeviceSelect.value; if (v) sendCmd('setAudioDevice', { requestId: nextRequestId('setAudioDevice'), deviceId: v }); });
+    visualizerToggle.addEventListener('change', () => sendCmd('setVisualizer', { requestId: nextRequestId('setVisualizer'), enabled: !!visualizerToggle.checked }));
+    lyricsToggle.addEventListener('change', () => sendCmd('setLyrics', { requestId: nextRequestId('setLyrics'), enabled: !!lyricsToggle.checked }));
+
+    function nextRequestId(prefix) { requestSeq += 1; return `${prefix}-${Date.now()}-${requestSeq}`; }
+    function sendCmd(type, payload = {}) { if (!ws || ws.readyState !== WebSocket.OPEN) return; ws.send(JSON.stringify({ type, ...payload })); }
+    function seekToSlider() { sendCmd('seek', { positionMs: parseInt(seekInput.value, 10) || 0 }); }
+    function seekBy(deltaMs) { const target = Math.max(0, Math.min(lastDurationMs || 0, (lastPositionMs || 0) + deltaMs)); sendCmd('seek', { positionMs: target }); }
+    function setLoop(mode) { sendCmd('setLoopMode', { mode }); }
+    function setShuffle(enabled) { sendCmd('setShuffle', { enabled }); }
+    function updateSeekLabel(posMs, durMs) { seekLabel.textContent = `${formatTime(posMs)} / ${formatTime(durMs)}`; }
+    function formatTime(ms) { const totalSec = Math.max(0, Math.floor(ms / 1000)); const min = Math.floor(totalSec / 60); const sec = String(totalSec % 60).padStart(2, '0'); return `${min}:${sec}`; }
+    function currentTrackPath() { const activeBtn = Array.from(playlistEl.querySelectorAll('button')).find((b) => b.textContent.startsWith('▶ ')); return activeBtn ? activeBtn.dataset.path || null : null; }
+    function likeCurrentTrack() { const path = currentTrackPath(); if (!path) return statusEl.textContent = 'Brak aktualnego utworu do polubienia'; sendCmd('likeTrack', { requestId: nextRequestId('likeTrack'), path }); }
+    function addCurrentTrackToPlaylist() { const path = currentTrackPath(); const playlistId = (playlistIdInput?.value || '').trim(); if (!path) return statusEl.textContent = 'Brak aktualnego utworu do dodania'; if (!playlistId) return statusEl.textContent = 'Wybierz playlistę'; sendCmd('addTrackToPlaylist', { requestId: nextRequestId('addTrackToPlaylist'), playlistId, path }); }
+    function createPlaylist() { const name = (newPlaylistNameInput?.value || '').trim(); if (!name) return statusEl.textContent = 'Podaj nazwę playlisty'; sendCmd('createPlaylist', { requestId: nextRequestId('createPlaylist'), name }); }
+    function refreshPlaylists() { sendCmd('getPlaylists', { requestId: nextRequestId('getPlaylists') }); }
+    function refreshAudioDevices() { sendCmd('getAudioDevices', { requestId: nextRequestId('getAudioDevices') }); }
+    function refreshBrightness() { sendCmd('getBrightness', { requestId: nextRequestId('getBrightness') }); }
+
+    // ============================================================
+    // AUDIO DEVICES
+    // ============================================================
+    function renderAudioDevices(items, selected) {
+      audioDeviceSelect.innerHTML = '';
+      if (!items || items.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '-- brak urządzeń --';
+        audioDeviceSelect.appendChild(opt);
+        return;
+      }
+      items.forEach((d) => {
+        const opt = document.createElement('option');
+        opt.value = d.id || d.name;
+        opt.textContent = d.description || d.name;
+        if (selected && (d.id === selected || d.name === selected)) {
+          opt.selected = true;
+        }
+        audioDeviceSelect.appendChild(opt);
+      });
+    }
+
+    // ============================================================
+    // BRIGHTNESS
+    // ============================================================
+    function renderBrightness(data) {
+      const level = (typeof data === 'number') ? data : data.level;
+      const min = (typeof data === 'object' && data.min != null) ? data.min : 1;
+      const max = (typeof data === 'object' && data.max != null) ? data.max : 31;
+      brightnessInput.min = min;
+      brightnessInput.max = max;
+      brightnessInput.value = level;
+      brightnessLabel.textContent = `${level} / ${max}`;
+    }
+
+    // ============================================================
+    // BROWSE — sources, playlists, library (all in one tab)
+    // ============================================================
+    function requestBrowseSources() { currentBrowseMode = 'sources'; browseBreadcrumbEl.textContent = 'Źródła'; sendCmd('getBrowseSources', { requestId: nextRequestId('getBrowseSources') }); }
+    function browseShowPlaylists() { currentBrowseMode = 'playlists'; refreshPlaylists(); }
+    function browseShowLibraryArtists() { currentBrowseMode = 'libraryArtists'; browseBreadcrumbEl.textContent = 'Biblioteka › Artyści'; browseListEl.innerHTML = 'Ładowanie...'; sendCmd('getLibraryArtists'); }
+    function browseShowLibraryAlbums(artist) { currentBrowseMode = 'libraryAlbums'; browseBreadcrumbEl.innerHTML = `<span style="cursor:pointer;color:#aaf" onclick="browseShowLibraryArtists()">Biblioteka</span> › ${escHtml(artist)}`; browseListEl.innerHTML = 'Ładowanie...'; sendCmd('getLibraryAlbums', { artist }); }
+    function browseShowLibraryTracks(artist, album) { currentBrowseMode = 'libraryTracks'; const crumb = album ? `<span style="cursor:pointer;color:#aaf" onclick="browseShowLibraryArtists()">Biblioteka</span> › <span style="cursor:pointer;color:#aaf" onclick="browseShowLibraryAlbums('${escAttr(artist)}')">${escHtml(artist)}</span> › ${escHtml(album)}` : `<span style="cursor:pointer;color:#aaf" onclick="browseShowLibraryArtists()">Biblioteka</span> › ${escHtml(artist)} › Wszystkie`; browseBreadcrumbEl.innerHTML = crumb; browseListEl.innerHTML = 'Ładowanie...'; sendCmd('getLibraryTracks', { artist, album }); }
+    function requestPlaylistDetails(playlistId) { currentBrowseMode = 'playlistDetails'; sendCmd('getPlaylistDetails', { requestId: nextRequestId('getPlaylistDetails'), playlistId }); }
+    function requestBrowseSourceTracks(sourceId) { currentBrowseMode = 'sourceTracks'; sendCmd('getBrowseSourceTracks', { requestId: nextRequestId('getBrowseSourceTracks'), sourceId }); }
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function escAttr(s) { return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+    function loadPlaylist(paths, index) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { statusEl.textContent = 'Brak połączenia WebSocket'; return; }
+      sendCmd('loadPlaylist', { paths, index });
+      switchTab('player');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // --- common track list renderer ---
+    function renderTrackList(container, tracks, playAllLabel) {
+      container.innerHTML = '';
+      if (!tracks || tracks.length === 0) { container.textContent = 'Brak utworów'; return; }
+      const playAllBtn = document.createElement('button');
+      playAllBtn.textContent = playAllLabel;
+      playAllBtn.style.background = '#2a2';
+      playAllBtn.onclick = () => loadPlaylist(tracks.map(t => t.path), 0);
+      container.appendChild(playAllBtn);
+      tracks.forEach((track, idx) => {
+        const btn = document.createElement('button');
+        const liked = track.liked ? '♥ ' : '';
+        const artist = track.artist ? ` — ${track.artist}` : '';
+        btn.textContent = `${liked}${track.title || track.path || 'Track ' + (idx+1)}${artist}`;
+        btn.onclick = () => loadPlaylist(tracks.map(t => t.path), idx);
+        container.appendChild(btn);
+      });
+    }
+
+    // --- browse data handlers ---
+    function handlePlaylists(items) {
+      remotePlaylists = items || [];
+      playlistIdInput.innerHTML = '';
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = '-- wybierz playlistę --';
+      playlistIdInput.appendChild(empty);
+      remotePlaylists.forEach((pl) => {
+        const opt = document.createElement('option');
+        opt.value = pl.id;
+        opt.textContent = `${pl.name} (${pl.count})`;
+        playlistIdInput.appendChild(opt);
+      });
+      if (currentBrowseMode === 'playlists') {
+        browseBreadcrumbEl.textContent = 'Playlisty';
+        browseListEl.innerHTML = '';
+        if (!items || items.length === 0) { browseListEl.textContent = 'Brak playlist'; return; }
+        items.forEach((pl) => {
+          const btn = document.createElement('button');
+          btn.textContent = `🎵 ${pl.name} (${pl.count})`;
+          btn.onclick = () => requestPlaylistDetails(pl.id);
+          browseListEl.appendChild(btn);
+        });
+      }
+    }
+
+    function handlePlaylistDetails(playlist, tracks) {
+      currentBrowseTracks = tracks || [];
+      browseBreadcrumbEl.innerHTML = `<span style="cursor:pointer;color:#aaf" onclick="browseShowPlaylists()">Playlisty</span> › ${escHtml(playlist?.name || '')}`;
+      renderTrackList(browseListEl, currentBrowseTracks, `▶ Odtwórz playlistę (${tracks.length})`);
+    }
+
+    function handleBrowseSources(items) {
+      browseBreadcrumbEl.textContent = 'Źródła';
+      browseListEl.innerHTML = '';
+      if (!items || items.length === 0) { browseListEl.textContent = 'Brak źródeł'; return; }
+      items.forEach((source) => {
+        const btn = document.createElement('button');
+        const availability = source.available ? '' : ' (niedostępne)';
+        btn.textContent = `📁 ${source.label || source.name}${availability}`;
+        btn.disabled = !source.available;
+        btn.onclick = () => requestBrowseSourceTracks(source.sourceId);
+        browseListEl.appendChild(btn);
+      });
+    }
+
+    function handleBrowseSourceTracks(source, tracks) {
+      currentBrowseTracks = tracks || [];
+      browseBreadcrumbEl.innerHTML = `<span style="cursor:pointer;color:#aaf" onclick="requestBrowseSources()">Źródła</span> › ${escHtml(source?.label || source?.name || '')}`;
+      renderTrackList(browseListEl, currentBrowseTracks, `▶ Odtwórz źródło (${tracks.length})`);
+    }
+
+    // --- Library handlers (rendered in browse tab) ---
+    function handleLibraryArtists(artists, message) {
+      if (currentBrowseMode !== 'libraryArtists') return;
+      browseListEl.innerHTML = '';
+      if (!artists || artists.length === 0) { browseListEl.textContent = message || 'Biblioteka jest pusta.'; return; }
+      artists.forEach((name) => {
+        const btn = document.createElement('button');
+        btn.textContent = `🎤 ${name}`;
+        btn.onclick = () => browseShowLibraryAlbums(name);
+        browseListEl.appendChild(btn);
+      });
+    }
+
+    function handleLibraryAlbums(albums) {
+      if (currentBrowseMode !== 'libraryAlbums') return;
+      browseListEl.innerHTML = '';
+      if (!albums || albums.length === 0) { browseListEl.textContent = 'Brak albumów.'; return; }
+      const artist = albums[0]?.artist || '';
+      const allBtn = document.createElement('button');
+      allBtn.textContent = '🎶 Wszystkie utwory artysty';
+      allBtn.style.background = '#335';
+      allBtn.onclick = () => browseShowLibraryTracks(artist, '');
+      browseListEl.appendChild(allBtn);
+      albums.forEach((a) => {
+        const btn = document.createElement('button');
+        btn.textContent = `💿 ${a.name}`;
+        btn.onclick = () => browseShowLibraryTracks(a.artist, a.name);
+        browseListEl.appendChild(btn);
+      });
+    }
+
+    function handleLibraryTracks(tracks) {
+      if (currentBrowseMode !== 'libraryTracks') return;
+      currentBrowseTracks = tracks || [];
+      renderTrackList(browseListEl, currentBrowseTracks, `▶ Odtwórz wszystko (${tracks.length})`);
+    }
+
+    // ============================================================
+    // ACK / ERROR / STATE
+    // ============================================================
+    function handleAck(data) {
+      if (data.action === 'likeTrack') statusEl.textContent = data.liked ? 'Utwór dodany do polubionych' : 'Utwór usunięty z polubionych';
+      else if (data.action === 'addTrackToPlaylist') statusEl.textContent = 'Utwór dodany do playlisty';
+      else if (data.action === 'createPlaylist') { statusEl.textContent = 'Playlista utworzona'; newPlaylistNameInput.value = ''; refreshPlaylists(); }
+      else if (data.action === 'setAudioDevice') { statusEl.textContent = 'Zmieniono urządzenie audio'; refreshAudioDevices(); }
+      else if (data.action === 'setBrightness') { statusEl.textContent = `Brightness: ${data.level}`; renderBrightness(data); }
+      else if (data.action === 'setVisualizer') statusEl.textContent = data.enabled ? 'Wizualizer włączony' : 'Wizualizer wyłączony';
+      else if (data.action === 'setLyrics') statusEl.textContent = data.enabled ? 'Tekst włączony' : 'Tekst wyłączony';
+    }
+    function handleWsError(data) { statusEl.textContent = `❌ ${(data && data.message) ? data.message : 'Błąd operacji WebSocket'}`; }
+
+    function handleState(data) {
+      const now = Date.now();
+      if (now - lastStateAt < 200) return;
+      lastStateAt = now;
+      if (typeof data.volume === 'number') volumeInput.value = data.volume;
+      if (typeof data.durationMs === 'number') { lastDurationMs = data.durationMs; seekInput.max = Math.max(0, data.durationMs); }
+      if (typeof data.positionMs === 'number') { lastPositionMs = data.positionMs; if (!isSeeking) seekInput.value = data.positionMs; }
+      if (typeof data.showVisualizer === 'boolean') visualizerToggle.checked = data.showVisualizer;
+      if (typeof data.showLyrics === 'boolean') lyricsToggle.checked = data.showLyrics;
+      if (typeof data.selectedAudioDevice === 'string' && data.selectedAudioDevice) {
+        audioDeviceSelect.value = data.selectedAudioDevice;
+      }
+      updateSeekLabel(lastPositionMs, lastDurationMs);
+      const playlist = data.playlist || [];
+      const playlistKey = `${playlist.length}|${playlist.map(p => p.name || p.path || '').join('~')}`;
+      if (playlistKey !== lastPlaylistKey || data.currentIndex !== lastCurrentIndex) { renderPlaylist(playlist, data.currentIndex); lastPlaylistKey = playlistKey; lastCurrentIndex = data.currentIndex ?? -1; }
+    }
+
+    function renderPlaylist(items, currentIndex) {
+      playlistEl.innerHTML = '';
+      items.forEach((item, idx) => {
+        const btn = document.createElement('button');
+        btn.dataset.path = item.path || '';
+        const likedMark = item.liked ? '♥ ' : '';
+        btn.textContent = (idx === currentIndex ? '▶ ' : '') + likedMark + (item.name || item.path || `Track ${idx + 1}`);
+        btn.onclick = () => { sendCmd('playIndex', { index: idx }); setTimeout(() => sendCmd('getState'), 300); };
+        playlistEl.appendChild(btn);
+      });
+    }
+
+    // ============================================================
+    // TABS
+    // ============================================================
+    function switchTab(tab) {
+      const views = { player: 'view-player', browse: 'view-browse', upload: 'view-upload' };
+      const btns = { player: 'tabBtnPlayer', browse: 'tabBtnBrowse', upload: 'tabBtnUpload' };
+      for (const [key, id] of Object.entries(views)) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (key === tab) ? 'block' : 'none';
+      }
+      for (const [key, id] of Object.entries(btns)) {
+        const el = document.getElementById(id);
+        if (el) { el.style.background = (key === tab) ? '#334' : '#1b1b1b'; el.style.fontWeight = (key === tab) ? 'bold' : 'normal'; }
+      }
+      if (tab === 'browse') {
+        currentBrowseMode = 'playlists';
+        refreshPlaylists();
+      }
+    }
+
+    // ============================================================
+    // UPLOAD
+    // ============================================================
+    const CHUNK_SIZE = 64 * 1024; // 64 KB
+
+    let uploadFile       = null;   // wybrany plik
+    let uploadSessionId  = null;   // aktywna sesja
+    let uploadPending    = false;  // czy trwa upload
+    let uploadAborted    = false;  // czy anulowano
+
+    const dropZone       = document.getElementById('dropZone');
+    const fileInput      = document.getElementById('fileInput');
+    const uploadBtnEl    = document.getElementById('uploadBtn');
+    const cancelBtnEl    = document.getElementById('cancelUploadBtn');
+    const uploadStatusEl = document.getElementById('uploadStatus');
+    const progressWrap   = document.getElementById('progressWrap');
+    const progressBar    = document.getElementById('progressBar');
+    const uploadLogEl    = document.getElementById('uploadLog');
+
+    // Klik na drop zone → otwórz file picker
+    dropZone.addEventListener('click', () => {
+      if (!uploadPending) fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files[0];
+      if (f) selectFile(f);
+    });
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const f = e.dataTransfer.files[0];
+      if (f) selectFile(f);
+    });
+
+    function selectFile(f) {
+      uploadFile = f;
+      dropZone.classList.add('has-file');
+      document.getElementById('dropZoneText').innerHTML =
+        `✅ <b>${f.name}</b><br><small>${formatBytes(f.size)}</small>`;
+      uploadBtnEl.disabled = !ws || ws.readyState !== WebSocket.OPEN;
+      uploadStatusEl.textContent = '';
+      setProgress(0, false);
+      uploadLog(`Wybrano: ${f.name} (${formatBytes(f.size)})`, 'inf');
+    }
+
+    async function startUpload() {
+      if (!uploadFile || uploadPending) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        uploadStatusEl.textContent = 'Brak połączenia WebSocket!';
+        return;
+      }
+
+      uploadPending  = true;
+      uploadAborted  = false;
+      uploadSessionId = null;
+
+      uploadBtnEl.disabled     = true;
+      cancelBtnEl.style.display = 'inline-block';
+      uploadStatusEl.textContent = 'Inicjalizacja...';
+      setProgress(0, true);
+      uploadLog(`⬆ Start uploadu: ${uploadFile.name}`, 'inf');
+
+      const targetDir = document.getElementById('targetDir').value;
+
+      // 1. Wyślij uploadFileStart i czekaj na odpowiedź przez Promise
+      try {
+        uploadSessionId = await waitForUploadStart(uploadFile, targetDir);
+      } catch (err) {
+        finishUpload(false, `Błąd inicjalizacji: ${err}`);
+        return;
+      }
+
+      uploadLog(`Session: ${uploadSessionId}`, 'inf');
+
+      // 2. Wyślij chunki sekwencyjnie
+      try {
+        await sendChunks(uploadFile, uploadSessionId);
+      } catch (err) {
+        if (!uploadAborted) finishUpload(false, `Błąd wysyłania: ${err}`);
+        return;
+      }
+
+      if (uploadAborted) return;
+
+      // 3. Finalizacja
+      uploadStatusEl.textContent = 'Finalizacja...';
+      ws.send(JSON.stringify({ type: 'uploadFileEnd', sessionId: uploadSessionId }));
+      // Odpowiedź obsłużona w handleUploadComplete / handleUploadError
+    }
+
+    function waitForUploadStart(file, targetDir) {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject('Timeout inicjalizacji (10s)'), 10000);
+        const handler = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (data.type === 'uploadStart') {
+              clearTimeout(timeout);
+              ws.removeEventListener('message', handler);
+              resolve(data.sessionId);
+            } else if (data.type === 'uploadError' && !data.sessionId) {
+              clearTimeout(timeout);
+              ws.removeEventListener('message', handler);
+              reject(data.error || 'Nieznany błąd');
+            }
+          } catch (_) {}
+        };
+        ws.addEventListener('message', handler);
+        ws.send(JSON.stringify({
+          type: 'uploadFileStart',
+          filename: file.name,
+          totalSizeBytes: file.size,
+          targetDir,
+        }));
+      });
+    }
+
+    async function sendChunks(file, sessionId) {
+      let offset = 0;
+      let chunkIndex = 0;
+
+      while (offset < file.size) {
+        if (uploadAborted) throw new Error('Anulowano');
+
+        const slice  = file.slice(offset, Math.min(offset + CHUNK_SIZE, file.size));
+        const buffer = await slice.arrayBuffer();
+        const base64 = arrayBufferToBase64(buffer);
+
+        // Czekaj na potwierdzenie postępu przed wysłaniem następnego chunka
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject('Timeout chunka'), 30000);
+          const handler = (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              if (data.sessionId !== sessionId) return;
+              if (data.type === 'uploadProgress') {
+                clearTimeout(timeout);
+                ws.removeEventListener('message', handler);
+                setProgress(data.percentDone, true);
+                uploadStatusEl.textContent = `${data.percentDone}% (${formatBytes(data.bytesWritten)} / ${formatBytes(file.size)})`;
+                resolve();
+              } else if (data.type === 'uploadError') {
+                clearTimeout(timeout);
+                ws.removeEventListener('message', handler);
+                reject(data.error || 'Błąd chunka');
+              }
+            } catch (_) {}
+          };
+          ws.addEventListener('message', handler);
+          ws.send(JSON.stringify({ type: 'uploadFileChunk', sessionId, chunk: base64 }));
+        });
+
+        offset += CHUNK_SIZE;
+        chunkIndex++;
+      }
+    }
+
+    function handleUploadStart(data) {
+      // Obsłużone przez Promise w waitForUploadStart — tu nic nie robimy
+    }
+
+    function handleUploadProgress(data) {
+      // Obsłużone przez Promise w sendChunks — tu nic nie robimy
+    }
+
+    function handleUploadComplete(data) {
+      uploadLog(`✅ Gotowe: ${data.filename}  →  ${data.path}`, 'ok');
+      finishUpload(true, `Przesłano: ${data.filename}`);
+    }
+
+    function handleUploadError(data) {
+      if (uploadPending) {
+        uploadLog(`❌ Błąd: ${data.error}`, 'err');
+        finishUpload(false, `Błąd: ${data.error}`);
+      }
+    }
+
+    function handleUploadCancelled(_data) {
+      uploadLog('🚫 Upload anulowany.', 'inf');
+      finishUpload(false, 'Anulowano.');
+    }
+
+    function cancelUpload() {
+      if (!uploadPending) return;
+      uploadAborted = true;
+      if (uploadSessionId && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'uploadCancel', sessionId: uploadSessionId }));
+      }
+      finishUpload(false, 'Anulowano.');
+    }
+
+    function finishUpload(success, message) {
+      uploadPending   = false;
+      uploadSessionId = null;
+      uploadBtnEl.disabled      = !uploadFile || !ws || ws.readyState !== WebSocket.OPEN;
+      cancelBtnEl.style.display = 'none';
+      uploadStatusEl.textContent = message;
+      if (!success) setProgress(0, false);
+    }
+
+    function setProgress(percent, visible) {
+      progressWrap.style.display = visible ? 'block' : 'none';
+      progressBar.style.width    = `${Math.max(0, Math.min(100, percent))}%`;
+    }
+
+    function uploadLog(msg, cls = 'inf') {
+      const div = document.createElement('div');
+      div.className = cls;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      uploadLogEl.appendChild(div);
+      uploadLogEl.scrollTop = uploadLogEl.scrollHeight;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let bin = '';
+      for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024)       return bytes + ' B';
+      if (bytes < 1048576)    return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+      return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    // Odblokuj przycisk upload gdy WS jest gotowy
+    document.getElementById('connectBtn').addEventListener('click', () => {
+      setTimeout(() => {
+        if (uploadFile && ws && ws.readyState === WebSocket.OPEN) {
+          uploadBtnEl.disabled = false;
+        }
+      }, 500);
+    });
+
+    // start in player view
+    switchTab('player');
+  </script>
+</body>
+</html>

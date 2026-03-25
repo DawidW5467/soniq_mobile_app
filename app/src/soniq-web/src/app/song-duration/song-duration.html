@@ -1,0 +1,6 @@
+@let currentPosition = 'songDuration.currentPosition' | translate;
+@let songLength = 'songDuration.songLength' | translate;
+
+<span [title]="currentPosition" [attr.aria-label]="currentPosition">{{ songService.consoleStatus().currentPosition ? (songService.consoleStatus().currentPosition! | convertTime) : '00:00' }}</span>
+<progress [value]="songService.consoleStatus().currentPosition ? songService.consoleStatus().currentPosition : 0" [max]="songService.song().duration"></progress>
+<span [title]="songLength" [attr.aria-label]="songLength">{{ songService.song().duration | convertTime }}</span>

@@ -1,0 +1,8 @@
+<span
+  [attr.aria-label]="label()"
+  class="slider"
+  (click)="changeStep()"
+  (keydown.enter)="changeStep()"
+  (keydown.space)="changeStep()"
+  (contextmenu)="$event.preventDefault()"
+  role="switch" tabindex="0"></span>

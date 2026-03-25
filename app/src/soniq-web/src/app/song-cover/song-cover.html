@@ -1,0 +1,23 @@
+@if (songService.song().cover) {
+  <img
+    class="song-cover"
+    [class.grayscale]="songCoverGrayscale()"
+    ngSrc="{{ songService.song().cover }}"
+    [alt]="('songCover.songCover' | translate) + (songService.song().album || ('songCover.unknownSongCover' | translate))"
+    fill />
+} @else {
+  <div class="song-cover placeholder" [attr.aria-label]="'songCover.noCover' | translate" role="img">
+    <fa-icon [icon]="faMusic" />
+  </div>
+}
+<div class="song-metadata">
+  <div class="title" [title]="songService.song().title" [attr.aria-label]="'songCover.title' | translate">
+    {{ songService.song().title || ('songCover.unknownTitle' | translate) }}
+  </div>
+  <div class="artist" [title]="songService.song().artist || ('songCover.unknownArtist' | translate)" [attr.aria-label]="'songCover.artist' | translate">
+    {{ songService.song().artist || ('songCover.unknownArtist' | translate) }}
+  </div>
+  <div class="album" [title]="songService.song().album || ('songCover.unknownAlbum' | translate)" aria-label="Album">
+    {{ songService.song().album || ('songCover.unknownAlbum' | translate) }}
+  </div>
+</div>
